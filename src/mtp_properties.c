@@ -326,30 +326,30 @@ int build_properties_dataset(mtp_ctx * ctx,void * buffer, int maxsize,uint32_t p
 
 	if( properties[i].prop_code == property_id )
 	{
-		poke(buffer, &ofs, 2, properties[i].prop_code);            // PropertyCode
-		poke(buffer, &ofs, 2, properties[i].data_type);            // DataType
-		poke(buffer, &ofs, 1, properties[i].getset);               // Get / Set
+		ofs = poke16(buffer, ofs, properties[i].prop_code);            // PropertyCode
+		ofs = poke16(buffer, ofs, properties[i].data_type);            // DataType
+		ofs = poke08(buffer, ofs, properties[i].getset);               // Get / Set
 
 		switch(properties[i].data_type)
 		{
 			case MTP_TYPE_STR:
 			case MTP_TYPE_UINT8:
-				poke(buffer, &ofs, 1, properties[i].default_value);                         // DefaultValue
+				ofs = poke08(buffer, ofs, properties[i].default_value);                         // DefaultValue
 			break;
 			case MTP_TYPE_UINT16:
-				poke(buffer, &ofs, 2, properties[i].default_value);                         // DefaultValue
+				ofs = poke16(buffer, ofs, properties[i].default_value);                         // DefaultValue
 			break;
 			case MTP_TYPE_UINT32:
-				poke(buffer, &ofs, 4, properties[i].default_value);                         // DefaultValue
+				ofs = poke32(buffer, ofs, properties[i].default_value);                         // DefaultValue
 			break;
 			case MTP_TYPE_UINT64:
-				poke(buffer, &ofs, 4, properties[i].default_value & 0xFFFFFFFF);            // DefaultValue
-				poke(buffer, &ofs, 4, properties[i].default_value >> 32);
+				ofs = poke32(buffer, ofs, properties[i].default_value & 0xFFFFFFFF);            // DefaultValue
+				ofs = poke32(buffer, ofs, properties[i].default_value >> 32);
 			break;
 			case MTP_TYPE_UINT128:
 				for(j=0;j<4;j++)
 				{
-					poke(buffer, &ofs, 4, properties[i].default_value);
+					ofs = poke32(buffer, ofs, properties[i].default_value);
 				}
 			break;
 			default:
@@ -357,8 +357,8 @@ int build_properties_dataset(mtp_ctx * ctx,void * buffer, int maxsize,uint32_t p
 			break;
 		}
 
-		poke(buffer, &ofs, 4, properties[i].group_code);           // Group code
-		poke(buffer, &ofs, 1, properties[i].form_flag);            // Form flag
+		ofs = poke32(buffer, ofs, properties[i].group_code);           // Group code
+		ofs = poke08(buffer, ofs, properties[i].form_flag);            // Form flag
 	}
 
 	return ofs;
@@ -380,33 +380,33 @@ int build_device_properties_dataset(mtp_ctx * ctx,void * buffer, int maxsize,uin
 
 	if( dev_properties[i].prop_code == property_id )
 	{
-		poke(buffer, &ofs, 2, dev_properties[i].prop_code);            // PropertyCode
-		poke(buffer, &ofs, 2, dev_properties[i].data_type);            // DataType
-		poke(buffer, &ofs, 1, dev_properties[i].getset);               // Get / Set
+		ofs = poke16(buffer, ofs, dev_properties[i].prop_code);            // PropertyCode
+		ofs = poke16(buffer, ofs, dev_properties[i].data_type);            // DataType
+		ofs = poke08(buffer, ofs, dev_properties[i].getset);               // Get / Set
 
 		switch(dev_properties[i].data_type)
 		{
 			case MTP_TYPE_STR:
 			case MTP_TYPE_UINT8:
-				poke(buffer, &ofs, 1, dev_properties[i].default_value);
-				poke(buffer, &ofs, 1, dev_properties[i].default_value);
+				ofs = poke08(buffer, ofs, dev_properties[i].default_value);
+				ofs = poke08(buffer, ofs, dev_properties[i].default_value);
 			break;
 
 			case MTP_TYPE_UINT16:
-				poke(buffer, &ofs, 2, dev_properties[i].default_value);
-				poke(buffer, &ofs, 2, dev_properties[i].default_value);
+				ofs = poke16(buffer, ofs, dev_properties[i].default_value);
+				ofs = poke16(buffer, ofs, dev_properties[i].default_value);
 			break;
 
 			case MTP_TYPE_UINT32:
-				poke(buffer, &ofs, 4, dev_properties[i].default_value);
-				poke(buffer, &ofs, 4, dev_properties[i].default_value);
+				ofs = poke32(buffer, ofs, dev_properties[i].default_value);
+				ofs = poke32(buffer, ofs, dev_properties[i].default_value);
 			break;
 
 			case MTP_TYPE_UINT64:
-				poke(buffer, &ofs, 4, dev_properties[i].default_value & 0xFFFFFFFF);
-				poke(buffer, &ofs, 4, dev_properties[i].default_value >> 32);
-				poke(buffer, &ofs, 4, dev_properties[i].default_value & 0xFFFFFFFF);
-				poke(buffer, &ofs, 4, dev_properties[i].default_value >> 32);
+				ofs = poke32(buffer, ofs, dev_properties[i].default_value & 0xFFFFFFFF);
+				ofs = poke32(buffer, ofs, dev_properties[i].default_value >> 32);
+				ofs = poke32(buffer, ofs, dev_properties[i].default_value & 0xFFFFFFFF);
+				ofs = poke32(buffer, ofs, dev_properties[i].default_value >> 32);
 			break;
 
 			default:
@@ -415,8 +415,8 @@ int build_device_properties_dataset(mtp_ctx * ctx,void * buffer, int maxsize,uin
 			break;
 		}
 
-		poke(buffer, &ofs, 4, dev_properties[i].group_code);           // Group code
-		poke(buffer, &ofs, 1, dev_properties[i].form_flag);            // Form flag
+		ofs = poke32(buffer, ofs, dev_properties[i].group_code);           // Group code
+		ofs = poke08(buffer, ofs, dev_properties[i].form_flag);            // Form flag
 	}
 
 	return ofs;
@@ -444,14 +444,12 @@ int build_properties_supported_dataset(mtp_ctx * ctx,void * buffer, int maxsize,
 	while( fmt_properties[fmt_index].properties[nb_supported_prop] != 0xFFFF )
 		nb_supported_prop++;
 
-	ofs = 0;
-
-	poke(buffer, &ofs, 4, nb_supported_prop);
-
 	i = 0;
+
+	ofs = poke32(buffer, 0, nb_supported_prop);
 	while( fmt_properties[fmt_index].properties[i] != 0xFFFF )
 	{
-		poke(buffer, &ofs, 2, fmt_properties[fmt_index].properties[i]);
+		ofs = poke16(buffer, ofs, fmt_properties[fmt_index].properties[i]);
 		i++;
 	}
 
@@ -556,68 +554,68 @@ int build_ObjectPropValue_dataset(mtp_ctx * ctx,void * buffer, int maxsize,uint3
 		{
 			case MTP_PROPERTY_OBJECT_FORMAT:
 				if(entry->flags & ENTRY_IS_DIR)
-					poke(buffer, &ofs, 2, MTP_FORMAT_ASSOCIATION);                          // ObjectFormat Code
+					ofs = poke16(buffer, ofs, MTP_FORMAT_ASSOCIATION);                          // ObjectFormat Code
 				else
-					poke(buffer, &ofs, 2, MTP_FORMAT_UNDEFINED);                            // ObjectFormat Code
+					ofs = poke16(buffer, ofs, MTP_FORMAT_UNDEFINED);                            // ObjectFormat Code
 			break;
 
 			case MTP_PROPERTY_OBJECT_SIZE:
-				poke(buffer, &ofs, 4, entry->size & 0xFFFFFFFF);
-				poke(buffer, &ofs, 4, entry->size >> 32);
+				ofs = poke32(buffer, ofs, entry->size & 0xFFFFFFFF);
+				ofs = poke32(buffer, ofs, entry->size >> 32);
 			break;
 
 			case MTP_PROPERTY_DISPLAY_NAME:
-				poke(buffer, &ofs, 1, 0);
+				ofs = poke08(buffer, ofs, 0);
 			break;
 
 			case MTP_PROPERTY_NAME:
 			case MTP_PROPERTY_OBJECT_FILE_NAME:
-				poke_string(buffer, &ofs,entry->name);                                      // Filename
+				ofs = poke_string(buffer, ofs, entry->name);                                      // Filename
 			break;
 
 			case MTP_PROPERTY_STORAGE_ID:
-				poke(buffer, &ofs, 4, entry->storage_id);
+				ofs = poke32(buffer, ofs, entry->storage_id);
 			break;
 
 			case MTP_PROPERTY_PARENT_OBJECT:
-					poke(buffer, &ofs, 4, entry->parent);
+				ofs = poke32(buffer, ofs, entry->parent);
 			break;
 
 			case MTP_PROPERTY_HIDDEN:
-					poke(buffer, &ofs, 2, 0x0000);
+				ofs = poke16(buffer, ofs, 0x0000);
 			break;
 
 			case MTP_PROPERTY_SYSTEM_OBJECT:
-					poke(buffer, &ofs, 2, 0x0000);
+				ofs = poke16(buffer, ofs, 0x0000);
 			break;
 
 			case MTP_PROPERTY_PROTECTION_STATUS:
-				poke(buffer, &ofs, 2, 0x0000);
+				ofs = poke16(buffer, ofs, 0x0000);
 			break;
 
 			case MTP_PROPERTY_ASSOCIATION_TYPE:
 				if(entry->flags & ENTRY_IS_DIR)
-						poke(buffer, &ofs, 2, 0x0001);                          // ObjectFormat Code
+						ofs = poke16(buffer, ofs, 0x0001);                          // ObjectFormat Code
 				else
-						poke(buffer, &ofs, 2, 0x0000);                          // ObjectFormat Code
+						ofs = poke16(buffer, ofs, 0x0000);                          // ObjectFormat Code
 			break;
 
 			case MTP_PROPERTY_ASSOCIATION_DESC:
-				poke(buffer, &ofs, 4, 0x00000000);
+				ofs = poke32(buffer, ofs, 0x00000000);
 			break;
 
 
 			case MTP_PROPERTY_DATE_CREATED:
 			case MTP_PROPERTY_DATE_MODIFIED:
 				snprintf(timestr,sizeof(timestr),"%.4d%.2d%.2dT%.2d%.2d%.2d",1900 + 110, 1, 2, 10, 11,12);
-				poke_string(buffer, &ofs,timestr);
+				ofs = poke_string(buffer, ofs,timestr);
 			break;
 
 			case MTP_PROPERTY_PERSISTENT_UID:
-				poke(buffer, &ofs, 4, entry->handle);
-				poke(buffer, &ofs, 4, entry->parent);
-				poke(buffer, &ofs, 4, entry->storage_id);
-				poke(buffer, &ofs, 4, 0x00000000);
+				ofs = poke32(buffer, ofs, entry->handle);
+				ofs = poke32(buffer, ofs, entry->parent);
+				ofs = poke32(buffer, ofs, entry->storage_id);
+				ofs = poke32(buffer, ofs, 0x00000000);
 			break;
 
 			default:
@@ -641,11 +639,11 @@ int build_DevicePropValue_dataset(mtp_ctx * ctx,void * buffer, int maxsize,uint3
 	switch(prop_code)
 	{
 		case MTP_DEVICE_PROPERTY_BATTERY_LEVEL:
-			poke(buffer, &ofs, 2, 0x8000);
+			ofs = poke16(buffer, ofs, 0x8000);
 		break;
 
 		case MTP_DEVICE_PROPERTY_DEVICE_FRIENDLY_NAME:
-			poke_string(buffer, &ofs,ctx->usb_cfg.usb_string_product);
+			ofs = poke_string(buffer, ofs, ctx->usb_cfg.usb_string_product);
 		break;
 
 		default:
@@ -674,34 +672,34 @@ int objectproplist_element(mtp_ctx * ctx, void * buffer, int * ofs, uint16_t pro
 
 	if( properties[i].prop_code == prop_code )
 	{
-		poke(buffer, ofs, 4, handle);
-		poke(buffer, ofs, 2, properties[i].prop_code);
-		poke(buffer, ofs, 2, properties[i].data_type);
+		*ofs = poke32(buffer, *ofs, handle);
+		*ofs = poke16(buffer, *ofs, properties[i].prop_code);
+		*ofs = poke16(buffer, *ofs, properties[i].data_type);
 		switch(properties[i].data_type)
 		{
 			case MTP_TYPE_STR:
 				if(data)
-					poke_string(buffer, ofs, (char*)data);
+					*ofs = poke_string(buffer, *ofs, (char*)data);
 				else
-					poke(buffer, ofs, 1, 0);
+					*ofs = poke08(buffer, *ofs, 0);
 			break;
 			case MTP_TYPE_UINT8:
-				poke(buffer, ofs, 1, *((uint8_t*)data));
+				*ofs = poke08(buffer, *ofs, *((uint8_t*)data));
 			break;
 			case MTP_TYPE_UINT16:
-				poke(buffer, ofs, 2, *((uint16_t*)data));
+				*ofs = poke16(buffer, *ofs, *((uint16_t*)data));
 			break;
 			case MTP_TYPE_UINT32:
-				poke(buffer, ofs, 4, *((uint32_t*)data));
+				*ofs = poke32(buffer, *ofs, *((uint32_t*)data));
 			break;
 			case MTP_TYPE_UINT64:
-				poke(buffer, ofs, 4, *((uint64_t*)data) & 0xFFFFFFFF);
-				poke(buffer, ofs, 4, *((uint64_t*)data) >> 32);
+				*ofs = poke32(buffer, *ofs, *((uint64_t*)data) & 0xFFFFFFFF);
+				*ofs = poke32(buffer, *ofs, *((uint64_t*)data) >> 32);
 			break;
 			case MTP_TYPE_UINT128:
 				for(i=0;i<4;i++)
 				{
-					poke(buffer, ofs, 4, *((uint32_t*)data)+i);
+					*ofs = poke32(buffer, *ofs, *((uint32_t*)data)+i);
 				}
 			break;
 			default:
@@ -720,7 +718,7 @@ int build_objectproplist_dataset(mtp_ctx * ctx, void * buffer, int maxsize,fs_en
 	struct stat64 entrystat;
 	time_t t;
 	struct tm lt;
-	int ofs,tmp,ret,numberofelements;
+	int ofs,ret,numberofelements;
 	char * path;
 	char timestr[32];
 	uint32_t tmp_dword;
@@ -741,11 +739,9 @@ int build_objectproplist_dataset(mtp_ctx * ctx, void * buffer, int maxsize,fs_en
 		return 0;
 	}
 
-	ofs = 0;
-
 	numberofelements = 0;
 
-	poke(buffer, &ofs, 4, numberofelements);   // Number of elements
+	ofs = poke32(buffer, 0, numberofelements);   // Number of elements
 
 	numberofelements += objectproplist_element(ctx, buffer, &ofs, MTP_PROPERTY_STORAGE_ID, handle, &entry->storage_id,prop_code);
 
@@ -790,8 +786,7 @@ int build_objectproplist_dataset(mtp_ctx * ctx, void * buffer, int maxsize,fs_en
 	tmp_dword_array[3] = 0x00000000;
 	numberofelements += objectproplist_element(ctx, buffer, &ofs, MTP_PROPERTY_PERSISTENT_UID, handle, &tmp_dword_array,prop_code);
 
-	tmp = 0;
+	poke32(buffer, 0, numberofelements);   // Number of elements
 
-	poke(buffer, &tmp, 4, numberofelements);   // Number of elements
 	return ofs;
 }
