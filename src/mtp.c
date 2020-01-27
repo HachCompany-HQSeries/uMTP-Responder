@@ -25,43 +25,32 @@
 
 #include "buildconf.h"
 
+#include <inttypes.h>
+#include <pthread.h>
 #include <sys/types.h>
-#include <unistd.h>
 #include <fcntl.h>
-
 #include <stdio.h>
-#include <stdint.h>
 #include <string.h>
-#include <stdbool.h>
-
-#include <errno.h>
 
 #include <sys/stat.h>
 #include <unistd.h>
-#include <pthread.h>
-
-#include <inttypes.h>
-
-#include "logs_out.h"
-
-#include "mtp_helpers.h"
-
-#include "fs_handles_db.h"
 
 #include "mtp.h"
-#include "mtp_datasets.h"
-#include "mtp_properties.h"
-
-#include "usb_gadget_fct.h"
-
+#include "mtp_helpers.h"
 #include "mtp_constant.h"
 #include "mtp_constant_strings.h"
+#include "mtp_datasets.h"
+#include "mtp_properties.h"
+#include "mtp_operations.h"
 
+#include "usb_gadget_fct.h"
 #include "mtp_support_def.h"
+#include "fs_handles_db.h"
 
 #include "inotify.h"
+#include "msgqueue.h"
 
-#include "mtp_operations.h"
+#include "logs_out.h"
 
 mtp_ctx * mtp_init_responder()
 {
@@ -93,6 +82,7 @@ mtp_ctx * mtp_init_responder()
 		pthread_mutex_init ( &ctx->inotify_mutex, NULL);
 
 		inotify_handler_init( ctx );
+		msgqueue_handler_init( ctx );
 
 		PRINT_DEBUG("init_mtp_responder : Ok !");
 
@@ -126,6 +116,7 @@ void mtp_deinit_responder(mtp_ctx * ctx)
 {
 	if( ctx )
 	{
+		msgqueue_handler_deinit( ctx );
 		inotify_handler_deinit( ctx );
 
 		if(ctx->wrbuffer)
@@ -696,6 +687,58 @@ uint32_t mtp_add_storage(mtp_ctx * ctx, char * path, char * description, uint32_
 	}
 
 	return 0x00000000;
+}
+
+uint32_t mtp_get_storage_id_by_name(mtp_ctx * ctx, char * name)
+{
+	int i;
+
+	PRINT_DEBUG("mtp_get_storage_id_by_name : %s", name );
+
+	i = 0;
+	while(i < MAX_STORAGE_NB)
+	{
+		if( ctx->storages[i].root_path )
+		{
+			if( !strcmp(ctx->storages[i].description, name ) )
+			{
+				PRINT_DEBUG("mtp_get_storage_id_by_name : %s -> %.8X",
+					    ctx->storages[i].root_path,
+						ctx->storages[i].storage_id);
+
+				return ctx->storages[i].storage_id;
+			}
+		}
+		i++;
+	}
+
+	return 0xFFFFFFFF;
+}
+
+int mtp_get_storage_index_by_name(mtp_ctx * ctx, char * name)
+{
+	int i;
+
+	PRINT_DEBUG("mtp_get_storage_index_by_name : %s", name );
+
+	i = 0;
+	while(i < MAX_STORAGE_NB)
+	{
+		if( ctx->storages[i].root_path )
+		{
+			if( !strcmp(ctx->storages[i].description, name ) )
+			{
+				PRINT_DEBUG("mtp_get_storage_index_by_name : %s -> %.8X",
+					    ctx->storages[i].root_path,
+						i);
+
+				return i;
+			}
+		}
+		i++;
+	}
+
+	return -1;
 }
 
 char * mtp_get_storage_root(mtp_ctx * ctx, uint32_t storage_id)

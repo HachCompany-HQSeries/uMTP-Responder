@@ -25,51 +25,40 @@
 
 #include "buildconf.h"
 
-#include <sys/types.h>
-
-#include <stdio.h>
-#include <stdint.h>
-
-#include <errno.h>
-
+#include <inttypes.h>
 #include <pthread.h>
 
-#include <inttypes.h>
-
-#include "mtp_datasets.h"
-
-#include "logs_out.h"
-
-#include "mtp_helpers.h"
-
 #include "mtp.h"
-
+#include "mtp_helpers.h"
 #include "mtp_constant.h"
-#include "mtp_constant_strings.h"
-
-#include "mtp_support_def.h"
+#include "mtp_operations.h"
 
 #include "usb_gadget_fct.h"
 
-#include "mtp_operations.h"
+#include "logs_out.h"
 
 uint32_t mtp_op_GetStorageIDs(mtp_ctx * ctx,MTP_PACKET_HEADER * mtp_packet_hdr, int * size,uint32_t * ret_params, int * ret_params_size)
 {
-	int ofs,i;
+	int ofs,i,cnt;
 
 	if(!ctx->fs_db)
 		return MTP_RESPONSE_SESSION_NOT_OPEN;
 
 	ofs = build_response(ctx, mtp_packet_hdr->tx_id, MTP_CONTAINER_TYPE_DATA, mtp_packet_hdr->code, ctx->wrbuffer,0,0);
 
+	cnt = 0;
 	i = 0;
 	while( (i < MAX_STORAGE_NB) && ctx->storages[i].root_path)
 	{
-		ctx->temp_array[i] = ctx->storages[i].storage_id; // Storage ID
+		if( !(ctx->storages[i].flags & UMTP_STORAGE_NOTMOUNTED) )
+		{
+			ctx->temp_array[cnt] = ctx->storages[i].storage_id; // Storage ID
+			cnt++;
+		}
 		i++;
 	}
 
-	ofs = poke_array(ctx->wrbuffer, ofs, 4 * i, 4, (void*)ctx->temp_array, 1);
+	ofs = poke_array(ctx->wrbuffer, ofs, 4 * cnt, 4, (void*)ctx->temp_array, 1);
 
 	// Update packet size
 	poke32(ctx->wrbuffer, 0, ofs);

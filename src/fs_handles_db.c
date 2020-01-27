@@ -25,25 +25,19 @@
 
 #include "buildconf.h"
 
-#include <sys/types.h>
+#include <inttypes.h>
 #include <unistd.h>
 #include <fcntl.h>
-
-#include <stdint.h>
-#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <sys/stat.h>
-#include <time.h>
-
 #include <dirent.h>
 
-#include <inttypes.h>
-
-#include "logs_out.h"
-#include "fs_handles_db.h"
 #include "mtp.h"
+#include "fs_handles_db.h"
 #include "inotify.h"
+#include "logs_out.h"
 
 int fs_remove_tree( char *folder )
 {
@@ -645,15 +639,32 @@ void entry_close(int file)
 		close(file);
 }
 
-fs_entry * get_entry_by_wd( fs_handles_db * db, int watch_descriptor )
+fs_entry * get_entry_by_wd( fs_handles_db * db, int watch_descriptor, fs_entry * entry_list )
 {
-	fs_entry * entry_list;
-
-	entry_list = db->entry_list;
+	if(!entry_list)
+		entry_list = db->entry_list;
 
 	while( entry_list )
 	{
 		if( !( entry_list->flags & ENTRY_IS_DELETED ) && ( entry_list->watch_descriptor == watch_descriptor ) )
+		{
+			return entry_list;
+		}
+
+		entry_list = entry_list->next;
+	}
+
+	return NULL;
+}
+
+fs_entry * get_entry_by_storageid( fs_handles_db * db, uint32_t storage_id, fs_entry * entry_list )
+{
+	if(!entry_list)
+		entry_list = db->entry_list;
+
+	while( entry_list )
+	{
+		if( !( entry_list->flags & ENTRY_IS_DELETED ) && ( entry_list->storage_id == storage_id ) )
 		{
 			return entry_list;
 		}

@@ -80,8 +80,9 @@ typedef struct mtp_storage_
 	uint32_t flags;
 }mtp_storage;
 
-#define UMTP_STORAGE_READONLY  0x00000001
-#define UMTP_STORAGE_READWRITE 0x00000000
+#define UMTP_STORAGE_NOTMOUNTED  0x00000002
+#define UMTP_STORAGE_READONLY    0x00000001
+#define UMTP_STORAGE_READWRITE   0x00000000
 
 typedef struct mtp_ctx_
 {
@@ -120,6 +121,9 @@ typedef struct mtp_ctx_
 	pthread_t inotify_thread;
 	pthread_mutex_t inotify_mutex;
 
+	int msgqueue_id;
+	pthread_t msgqueue_thread;
+
 	int no_inotify;
 
 	volatile int cancel_req;
@@ -133,6 +137,8 @@ void mtp_set_usb_handle(mtp_ctx * ctx, void * handle, uint32_t max_packet_size);
 int mtp_load_config_file(mtp_ctx * context);
 
 uint32_t mtp_add_storage(mtp_ctx * ctx, char * path, char * description, uint32_t flags);
+int mtp_get_storage_index_by_name(mtp_ctx * ctx, char * name);
+uint32_t mtp_get_storage_id_by_name(mtp_ctx * ctx, char * name);
 char * mtp_get_storage_description(mtp_ctx * ctx, uint32_t storage_id);
 char * mtp_get_storage_root(mtp_ctx * ctx, uint32_t storage_id);
 uint32_t mtp_get_storage_flags(mtp_ctx * ctx, uint32_t storage_id);
@@ -147,6 +153,6 @@ int build_response(mtp_ctx * ctx, uint32_t tx_id, uint16_t type, uint16_t status
 int check_and_send_USB_ZLP(mtp_ctx * ctx , int size);
 int parse_incomming_dataset(mtp_ctx * ctx,void * datain,int size,uint32_t * newhandle, uint32_t parent_handle, uint32_t storage_id);
 
-#define APP_VERSION "v1.2.0"
+#define APP_VERSION "v1.3.0"
 
 #endif
