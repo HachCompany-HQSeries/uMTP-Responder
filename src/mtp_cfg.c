@@ -66,12 +66,14 @@ enum
 	MANUFACTURER_STRING_CMD,
 	PRODUCT_STRING_CMD,
 	SERIAL_STRING_CMD,
+	VERSION_STRING_CMD,
 	INTERFACE_STRING_CMD,
 
 	WAIT_CONNECTION,
 	LOOP_ON_DISCONNECT,
 
 	SHOW_HIDDEN_FILES,
+	UMASK,
 
 	NO_INOTIFY
 
@@ -325,11 +327,11 @@ static int get_hex_param(mtp_ctx * context, char * line,int cmd)
 			break;
 
 			case USBMAXRDBUFFERSIZE_CMD:
-				context->usb_rd_buffer_max_size = param_value;
+				context->usb_rd_buffer_max_size = param_value & (~(512-1));
 			break;
 
 			case USBMAXWRBUFFERSIZE_CMD:
-				context->usb_wr_buffer_max_size = param_value;
+				context->usb_wr_buffer_max_size = param_value & (~(512-1));
 			break;
 
 			case READBUFFERSIZE_CMD:
@@ -401,12 +403,37 @@ static int get_str_param(mtp_ctx * context, char * line,int cmd)
 				strncpy(context->usb_cfg.usb_string_serial,tmp_txt,MAX_CFG_STRING_SIZE);
 			break;
 
+			case VERSION_STRING_CMD:
+				strncpy(context->usb_cfg.usb_string_version,tmp_txt,MAX_CFG_STRING_SIZE);
+			break;
+
 			case INTERFACE_STRING_CMD:
 				strncpy(context->usb_cfg.usb_string_interface,tmp_txt,MAX_CFG_STRING_SIZE);
 			break;
 		}
 	}
 
+	return 0;
+}
+
+static int get_oct_param(mtp_ctx * context, char * line,int cmd)
+{
+	int i;
+	char tmp_txt[MAX_CFG_STRING_SIZE];
+	unsigned long param_value;
+
+	i = get_param(line, 1, tmp_txt);
+
+	if (i >= 0)
+	{
+		param_value = strtol(tmp_txt, 0, 8);
+		switch (cmd)
+		{
+			case UMASK:
+				context->usb_cfg.val_umask = param_value;
+			break;
+		}
+	}
 	return 0;
 }
 
@@ -433,12 +460,14 @@ kw_list kwlist[] =
 	{"manufacturer",           get_str_param,   MANUFACTURER_STRING_CMD},
 	{"product",                get_str_param,   PRODUCT_STRING_CMD},
 	{"serial",                 get_str_param,   SERIAL_STRING_CMD},
+	{"firmware_version",       get_str_param,   VERSION_STRING_CMD},
 	{"interface",              get_str_param,   INTERFACE_STRING_CMD},
 
 	{"wait",                   get_hex_param,   WAIT_CONNECTION},
 	{"loop_on_disconnect",     get_hex_param,   LOOP_ON_DISCONNECT},
 
 	{"show_hidden_files",      get_hex_param,   SHOW_HIDDEN_FILES},
+	{"umask",                  get_oct_param,   UMASK},
 
 	{"no_inotify",             get_hex_param,   NO_INOTIFY},
 
@@ -504,6 +533,7 @@ int mtp_load_config_file(mtp_ctx * context, const char * conffile)
 	strncpy(context->usb_cfg.usb_string_manufacturer, MANUFACTURER,           MAX_CFG_STRING_SIZE);
 	strncpy(context->usb_cfg.usb_string_product,      PRODUCT,                MAX_CFG_STRING_SIZE);
 	strncpy(context->usb_cfg.usb_string_serial,       SERIALNUMBER,           MAX_CFG_STRING_SIZE);
+	strncpy(context->usb_cfg.usb_string_version,      "Rev A",                MAX_CFG_STRING_SIZE);
 	strncpy(context->usb_cfg.usb_string_interface,    "MTP",                  MAX_CFG_STRING_SIZE);
 
 	context->usb_cfg.usb_vendor_id       = USB_DEV_VENDOR_ID;
@@ -519,6 +549,8 @@ int mtp_load_config_file(mtp_ctx * context, const char * conffile)
 	context->usb_cfg.loop_on_disconnect = 0;
 
 	context->usb_cfg.show_hidden_files = 1;
+
+	context->usb_cfg.val_umask = -1;
 
 	context->no_inotify = 0;
 
@@ -555,6 +587,7 @@ int mtp_load_config_file(mtp_ctx * context, const char * conffile)
 	PRINT_MSG("Manufacturer string : %s",context->usb_cfg.usb_string_manufacturer);
 	PRINT_MSG("Product string : %s",context->usb_cfg.usb_string_product);
 	PRINT_MSG("Serial string : %s",context->usb_cfg.usb_string_serial);
+	PRINT_MSG("Firmware Version string : %s", context->usb_cfg.usb_string_version);
 	PRINT_MSG("Interface string : %s",context->usb_cfg.usb_string_interface);
 
 	PRINT_MSG("USB Vendor ID : 0x%.4X",context->usb_cfg.usb_vendor_id);
@@ -576,6 +609,14 @@ int mtp_load_config_file(mtp_ctx * context, const char * conffile)
 	PRINT_MSG("Wait for connection : %i",context->usb_cfg.wait_connection);
 	PRINT_MSG("Loop on disconnect : %i",context->usb_cfg.loop_on_disconnect);
 	PRINT_MSG("Show hidden files : %i",context->usb_cfg.show_hidden_files);
+	if(context->usb_cfg.val_umask >= 0)
+	{
+		PRINT_MSG("File creation umask : %03o",context->usb_cfg.val_umask);
+	}
+	else
+	{
+		PRINT_MSG("File creation umask : System default umask");
+	}
 	PRINT_MSG("inotify : %s",context->no_inotify?"no":"yes");
 
 	return err;
