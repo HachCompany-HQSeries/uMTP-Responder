@@ -46,19 +46,52 @@ enum
 #define EP_IN_DIR    0x00000000
 #define EP_OUT_DIR   0x00000002
 #define EP_HS_MODE   0x00000004
+#define EP_SS_MODE   0x00000008
+
+typedef struct _EndPointsDesc {
+	struct usb_interface_descriptor         if_desc;
+	struct usb_endpoint_descriptor_no_audio ep_desc_in;
+	struct usb_endpoint_descriptor_no_audio ep_desc_out;
+	struct usb_endpoint_descriptor_no_audio ep_desc_int_in;
+} __attribute__((packed)) EndPointsDesc;
+
+typedef struct _SSEndPointsDesc {
+	struct usb_interface_descriptor         if_desc;
+	struct usb_endpoint_descriptor_no_audio ep_desc_in;
+	struct usb_ss_ep_comp_descriptor        ep_desc_in_comp;
+	struct usb_endpoint_descriptor_no_audio ep_desc_out;
+	struct usb_ss_ep_comp_descriptor        ep_desc_out_comp;
+	struct usb_endpoint_descriptor_no_audio ep_desc_int_in;
+	struct usb_ss_ep_comp_descriptor        ep_desc_int_in_comp;
+
+} __attribute__((packed)) SSEndPointsDesc;
+
+typedef struct ep_cfg_descriptor {
+	struct usb_endpoint_descriptor_no_audio ep_desc;
+#ifdef CONFIG_USB_SS_SUPPORT
+	struct usb_ss_ep_comp_descriptor        ep_desc_comp;
+#endif
+} __attribute__((packed)) ep_cfg_descriptor;
 
 // Direct GadgetFS mode
 typedef struct _usb_cfg
 {
 	uint32_t head;
 
-	struct usb_config_descriptor cfg;
-	struct usb_interface_descriptor if_desc;
-	struct usb_endpoint_descriptor_no_audio ep_desc[3];
+#if CONFIG_USB_FS_SUPPORT
+	struct usb_config_descriptor cfg_fs;
+	EndPointsDesc ep_desc_fs;
+#endif
 
+#if CONFIG_USB_HS_SUPPORT
 	struct usb_config_descriptor cfg_hs;
-	struct usb_interface_descriptor if_desc_hs;
-	struct usb_endpoint_descriptor_no_audio ep_desc_hs[3];
+	EndPointsDesc ep_desc_hs;
+#endif
+
+#if CONFIG_USB_SS_SUPPORT
+	struct usb_config_descriptor cfg_ss;
+	SSEndPointsDesc ep_desc_ss;
+#endif
 
 	struct usb_device_descriptor dev_desc;
 
@@ -72,14 +105,30 @@ typedef struct _usb_ffs_cfg
 #ifndef OLD_FUNCTIONFS_DESCRIPTORS // Kernel > v3.14
 	uint32_t flags;
 #endif
+
+#ifdef CONFIG_USB_FS_SUPPORT
 	uint32_t fs_count;
+#endif
+
+#ifdef CONFIG_USB_HS_SUPPORT
 	uint32_t hs_count;
+#endif
 
-	struct usb_interface_descriptor if_desc;
-	struct usb_endpoint_descriptor_no_audio ep_desc[3];
+#if defined(CONFIG_USB_SS_SUPPORT) && !defined(OLD_FUNCTIONFS_DESCRIPTORS)
+	uint32_t ss_count;
+#endif
 
-	struct usb_interface_descriptor if_desc_hs;
-	struct usb_endpoint_descriptor_no_audio ep_desc_hs[3];
+#ifdef CONFIG_USB_FS_SUPPORT
+	EndPointsDesc ep_desc_fs;
+#endif
+
+#ifdef CONFIG_USB_HS_SUPPORT
+	EndPointsDesc ep_desc_hs;
+#endif
+
+#if defined(CONFIG_USB_SS_SUPPORT) && !defined(OLD_FUNCTIONFS_DESCRIPTORS)
+	SSEndPointsDesc ep_desc_ss;
+#endif
 
 } __attribute__ ((packed)) usb_ffs_cfg;
 
@@ -94,7 +143,7 @@ typedef struct _ep_cfg
 {
 	uint32_t head;
 
-	struct usb_endpoint_descriptor_no_audio ep_desc[2];
+	ep_cfg_descriptor ep_desc[2];
 
 } __attribute__ ((packed)) ep_cfg;
 
