@@ -163,22 +163,13 @@ DIR * fs_find_first_file(char *folder, filefoundinfo* fileinfo)
 				{
 					free(tmpstr);
 					return (void*)dir;
-
 				}
 
 				free(tmpstr);
 			}
-
-			closedir(dir);
-			dir = NULL;
-
 		}
 
 		closedir(dir);
-		dir = NULL;
-	}
-	else
-	{
 		dir = NULL;
 	}
 
@@ -190,6 +181,9 @@ int fs_find_next_file(DIR* dir, char *folder, filefoundinfo* fileinfo)
 	int ret;
 	struct dirent *d;
 	char * tmpstr;
+
+	if(!dir)
+		return 0;
 
 	d = readdir (dir);
 

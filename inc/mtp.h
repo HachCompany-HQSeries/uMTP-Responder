@@ -83,6 +83,7 @@ typedef struct mtp_storage_
 	uint32_t flags;
 }mtp_storage;
 
+#define UMTP_STORAGE_REMOVABLE   0x00000004
 #define UMTP_STORAGE_NOTMOUNTED  0x00000002
 #define UMTP_STORAGE_READONLY    0x00000001
 #define UMTP_STORAGE_READWRITE   0x00000000
@@ -141,6 +142,7 @@ void mtp_set_usb_handle(mtp_ctx * ctx, void * handle, uint32_t max_packet_size);
 int mtp_load_config_file(mtp_ctx * context, const char * conffile);
 
 uint32_t mtp_add_storage(mtp_ctx * ctx, char * path, char * description, uint32_t flags);
+int mtp_remove_storage(mtp_ctx * ctx, char * name);
 int mtp_get_storage_index_by_name(mtp_ctx * ctx, char * name);
 uint32_t mtp_get_storage_id_by_name(mtp_ctx * ctx, char * name);
 char * mtp_get_storage_description(mtp_ctx * ctx, uint32_t storage_id);
