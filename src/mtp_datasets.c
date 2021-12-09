@@ -1,6 +1,6 @@
 /*
  * uMTP Responder
- * Copyright (c) 2018 - 2020 Viveris Technologies
+ * Copyright (c) 2018 - 2021 Viveris Technologies
  *
  * uMTP Responder is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public
@@ -92,7 +92,7 @@ int build_deviceinfo_dataset(mtp_ctx * ctx, void * buffer, int maxsize)
 
 	ofs = poke_string(buffer, ofs, maxsize, ctx->usb_cfg.usb_string_manufacturer);                     // Manufacturer
 	ofs = poke_string(buffer, ofs, maxsize, ctx->usb_cfg.usb_string_product);                          // Model
-	ofs = poke_string(buffer, ofs, maxsize, ctx->usb_cfg.usb_string_version);                                                  // Device Version
+	ofs = poke_string(buffer, ofs, maxsize, ctx->usb_cfg.usb_string_version);                          // Device Version
 	ofs = poke_string(buffer, ofs, maxsize, ctx->usb_cfg.usb_string_serial);                           // Serial Number
 
 	return ofs;
