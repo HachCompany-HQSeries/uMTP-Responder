@@ -1,6 +1,6 @@
 /*
  * uMTP Responder
- * Copyright (c) 2018 - 2021 Viveris Technologies
+ * Copyright (c) 2018 - 2024 Viveris Technologies
  *
  * uMTP Responder is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public
@@ -93,7 +93,9 @@ uint32_t mtp_op_SendObject(mtp_ctx * ctx,MTP_PACKET_HEADER * mtp_packet_hdr, int
 							if( mtp_packet_hdr->code == MTP_OPERATION_SEND_PARTIAL_OBJECT )
 								file = open(full_path,O_RDWR | O_LARGEFILE);
 							else
-								file = open(full_path,O_CREAT|O_WRONLY|O_TRUNC| O_LARGEFILE, S_IRUSR|S_IWUSR);
+								file = open(full_path,
+										O_CREAT | O_WRONLY | O_TRUNC | O_LARGEFILE,
+										S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
 						}
 
 						restore_giduid(ctx);
@@ -148,10 +150,8 @@ uint32_t mtp_op_SendObject(mtp_ctx * ctx,MTP_PACKET_HEADER * mtp_packet_hdr, int
 
 							ctx->transferring_file_data = 0;
 
+							if (ctx->sync_when_close) fsync(file);
 							close(file);
-
-							if(ctx->usb_cfg.val_umask >= 0)
-								chmod(full_path, 0777 & (~ctx->usb_cfg.val_umask));
 
 							if(ctx->cancel_req)
 							{

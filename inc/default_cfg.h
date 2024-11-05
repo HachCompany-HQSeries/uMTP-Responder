@@ -1,6 +1,6 @@
 /*
  * uMTP Responder
- * Copyright (c) 2018 - 2021 Viveris Technologies
+ * Copyright (c) 2018 - 2024 Viveris Technologies
  *
  * uMTP Responder is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public
@@ -43,11 +43,11 @@
 
 #define USB_FFS_MODE 1
 
-#define USB_DEV     "/dev/ffs-umtp/ep0"
+#define USB_DEV     "/dev/ffs-mtp/ep0"
 
-#define USB_EPIN    "/dev/ffs-umtp/ep1"
-#define USB_EPOUT   "/dev/ffs-umtp/ep2"
-#define USB_EPINTIN "/dev/ffs-umtp/ep3"
+#define USB_EPIN    "/dev/ffs-mtp/ep1"
+#define USB_EPOUT   "/dev/ffs-mtp/ep2"
+#define USB_EPINTIN "/dev/ffs-mtp/ep3"
 
 #define MANUFACTURER "Viveris Technologies"
 #define PRODUCT      "The Viveris Product !"
