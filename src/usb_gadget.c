@@ -113,7 +113,7 @@ int write_usb(usb_gadget * ctx, int channel, unsigned char * buffer, int size)
 				{
 					ret = write (ctx->ep_handles[channel], buffer, size);
 				}
-			}while( ret < 0 && ( (errno == EAGAIN) || (errno == EAGAIN) ) && !mtp_context->cancel_req );
+			}while( ret < 0 && ( (errno == EAGAIN) || (errno == EWOULDBLOCK) ) && !mtp_context->cancel_req );
 			fcntl(ctx->ep_handles[channel], F_SETFL, fcntl(ctx->ep_handles[channel], F_GETFL) & ~O_NONBLOCK);
 #else
 
@@ -498,8 +498,6 @@ static void handle_setup_request(usb_gadget * ctx, struct usb_ctrlrequest* setup
 		case MTP_REQ_CANCEL:
 			PRINT_DEBUG("MTP_REQ_CANCEL !");
 
-			status = read (ctx->usb_device, &status, 0);
-
 			mtp_context->cancel_req = 1;
 
 			cnt = 0;
@@ -523,7 +521,7 @@ static void handle_setup_request(usb_gadget * ctx, struct usb_ctrlrequest* setup
 			while( mtp_context->cancel_req )
 			{
 				// Still Waiting the end of the current transfer...
-				if( cnt > 500 )
+				if( cnt > 2500 ) // wait 2.5s max for cancel_req from the io_thread
 				{
 					// Still blocked... Killing the link
 					PRINT_DEBUG("MTP_REQ_CANCEL : Stalled ... Killing the link...");
