@@ -1,6 +1,6 @@
 /*
  * uMTP Responder
- * Copyright (c) 2018 - 2024 Viveris Technologies
+ * Copyright (c) 2018 - 2025 Viveris Technologies
  *
  * uMTP Responder is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public
@@ -221,7 +221,7 @@ int unicode2charstring(char * str, uint16_t * unicodestr, int maxstrsize)
 		byte_access += 2;
 
 		if(!chunksize)
-		{	// Error -> default character
+		{   // Error -> default character
 			tmpstr[0] = '?';
 			tmpstr[1] = 0;
 			chunksize = 1;

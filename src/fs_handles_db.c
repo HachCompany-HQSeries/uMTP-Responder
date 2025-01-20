@@ -1,6 +1,6 @@
 /*
  * uMTP Responder
- * Copyright (c) 2018 - 2024 Viveris Technologies
+ * Copyright (c) 2018 - 2025 Viveris Technologies
  *
  * uMTP Responder is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public
@@ -191,11 +191,9 @@ int fs_find_next_file(DIR* dir, char *folder, filefoundinfo* fileinfo)
 	if(!dir)
 		return 0;
 
-	d = readdir (dir);
-
 	ret = 0;
 
-	if( d )
+	while ((d = readdir (dir)) != NULL)
 	{
 		tmpstr = malloc (strlen(folder) + strlen(d->d_name) + 4 );
 		if( tmpstr )
@@ -204,8 +202,9 @@ int fs_find_next_file(DIR* dir, char *folder, filefoundinfo* fileinfo)
 			strcat(tmpstr,"/");
 			strcat(tmpstr,d->d_name);
 
-			if( fs_entry_stat( tmpstr, fileinfo ) )
+			if( fs_entry_stat(tmpstr, fileinfo) )
 			{
+				// Valid entry
 				ret = 1;
 				free(tmpstr);
 				return ret;

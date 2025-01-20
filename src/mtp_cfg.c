@@ -1,6 +1,6 @@
 /*
  * uMTP Responder
- * Copyright (c) 2018 - 2024 Viveris Technologies
+ * Copyright (c) 2018 - 2025 Viveris Technologies
  *
  * uMTP Responder is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public
@@ -233,7 +233,7 @@ int test_flag(char * str, char * flag, char * param)
 		if(!strncmp(&str[i],flag,strlen(flag)))
 		{
 			if( (previous_char == 0 || previous_char == ',') && \
-			    (str[i + flaglen] == 0 || str[i + flaglen] == ','  || str[i + flaglen] == '=') )
+				(str[i + flaglen] == 0 || str[i + flaglen] == ','  || str[i + flaglen] == '=') )
 			{
 				if(param && str[i + flaglen] == '=')
 				{
