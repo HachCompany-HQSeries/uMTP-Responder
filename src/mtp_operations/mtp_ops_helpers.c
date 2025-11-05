@@ -25,6 +25,7 @@
 
 #include "buildconf.h"
 
+#include <fcntl.h>
 #include <inttypes.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -46,6 +47,7 @@ mtp_size send_file_data( mtp_ctx * ctx, fs_entry * entry,mtp_offset offset, mtp_
 	mtp_size j;
 	int ofs;
 	mtp_size blocksize;
+	mtp_size ContainerLength;
 	int file,bytes_read;
 	mtp_offset buf_index;
 	int io_buffer_index;
@@ -77,13 +79,18 @@ mtp_size send_file_data( mtp_ctx * ctx, fs_entry * entry,mtp_offset offset, mtp_
 			actualsize = maxsize;
 	}
 
-	poke32(ctx->wrbuffer, 0, ctx->usb_wr_buffer_max_size, sizeof(MTP_PACKET_HEADER) + actualsize);
+	if( (sizeof(MTP_PACKET_HEADER) + actualsize) >= (mtp_size)(0x100000000) )
+		ContainerLength = 0xFFFFFFFF;
+	else
+		ContainerLength = sizeof(MTP_PACKET_HEADER) + actualsize;
+
+	poke32(ctx->wrbuffer, 0, ctx->usb_wr_buffer_max_size, ContainerLength);
 
 	ofs = sizeof(MTP_PACKET_HEADER);
 
 	PRINT_DEBUG("send_file_data : Offset 0x%"SIZEHEX" - Maxsize 0x%"SIZEHEX" - Size 0x%"SIZEHEX" - ActualSize 0x%"SIZEHEX, offset,maxsize,entry->size,actualsize);
 
-	file = entry_open(ctx->fs_db, entry);
+	file = entry_open(ctx->fs_db, entry, O_RDONLY | O_LARGEFILE, 0);
 	if( file != -1 )
 	{
 		ctx->transferring_file_data = 1;
@@ -99,10 +106,10 @@ mtp_size send_file_data( mtp_ctx * ctx, fs_entry * entry,mtp_offset offset, mtp_
 			// Is the target page loaded ?
 			if( buf_index != ((offset + j) & ~((mtp_offset)(ctx->read_file_buffer_size-1))) )
 			{
-				bytes_read = entry_read(ctx->fs_db, file, ctx->read_file_buffer, ((offset + j) & ~((mtp_offset)(ctx->read_file_buffer_size-1))) , (mtp_size)ctx->read_file_buffer_size);
+				bytes_read = entry_read(ctx->fs_db, entry, ctx->read_file_buffer, ((offset + j) & ~((mtp_offset)(ctx->read_file_buffer_size-1))) , (mtp_size)ctx->read_file_buffer_size);
 				if( bytes_read < 0 )
 				{
-					entry_close( file );
+					entry_close( ctx->fs_db, entry );
 					return -1;
 				}
 
@@ -135,10 +142,10 @@ mtp_size send_file_data( mtp_ctx * ctx, fs_entry * entry,mtp_offset offset, mtp_
 				memcpy(&ctx->wrbuffer[ofs], &ctx->read_file_buffer[io_buffer_index], first_part_size  );
 
 				buf_index += (mtp_offset)ctx->read_file_buffer_size;
-				bytes_read = entry_read(ctx->fs_db, file, ctx->read_file_buffer, buf_index , ctx->read_file_buffer_size);
+				bytes_read = entry_read(ctx->fs_db, entry, ctx->read_file_buffer, buf_index , ctx->read_file_buffer_size);
 				if( bytes_read < 0 )
 				{
-					entry_close( file );
+					entry_close( ctx->fs_db, entry );
 					return -1;
 				}
 
@@ -152,7 +159,12 @@ mtp_size send_file_data( mtp_ctx * ctx, fs_entry * entry,mtp_offset offset, mtp_
 
 			PRINT_DEBUG("---> 0x%"SIZEHEX" (0x%X)",j,ofs);
 
-			write_usb(ctx->usb_ctx, EP_DESCRIPTOR_IN, usb_buffer_ptr, ofs);
+			if( !ctx->cancel_req )
+			{
+
+				write_usb(ctx->usb_ctx, EP_DESCRIPTOR_IN, usb_buffer_ptr, ofs);
+
+			}
 
 			ofs = 0;
 
@@ -160,25 +172,29 @@ mtp_size send_file_data( mtp_ctx * ctx, fs_entry * entry,mtp_offset offset, mtp_
 
 		ctx->transferring_file_data = 0;
 
-		entry_close( file );
+		entry_close( ctx->fs_db, entry );
 
-		if( ctx->cancel_req )
-		{
-			PRINT_DEBUG("send_file_data : Cancelled ! Aborted...");
+		if( !pthread_mutex_lock( &ctx->cancel_mutex ) )
+		{	
+			if( ctx->cancel_req )
+			{
+				PRINT_DEBUG("send_file_data : Cancelled ! Aborted...");
 
-			// Force a ZLP
-			check_and_send_USB_ZLP(ctx , ctx->max_packet_size );
+				// Force a ZLP
+				//check_and_send_USB_ZLP(ctx , ctx->max_packet_size );
 
-			actualsize = -2;
-			ctx->cancel_req = 0;
+				actualsize = -2;
+				ctx->cancel_req = 0;
+			}
+			else
+			{
+				PRINT_DEBUG("send_file_data : Full transfer done !");
+
+				check_and_send_USB_ZLP(ctx , sizeof(MTP_PACKET_HEADER) + actualsize );
+			}
+
+			pthread_mutex_unlock( &ctx->cancel_mutex );
 		}
-		else
-		{
-			PRINT_DEBUG("send_file_data : Full transfer done !");
-
-			check_and_send_USB_ZLP(ctx , sizeof(MTP_PACKET_HEADER) + actualsize );
-		}
-
 	}
 	else
 		actualsize = -1;

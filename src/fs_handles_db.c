@@ -42,6 +42,7 @@
 #include "fs_handles_db.h"
 #include "inotify.h"
 #include "logs_out.h"
+#include "hash_utils.h"
 
 int fs_remove_tree( char *folder )
 {
@@ -244,95 +245,100 @@ fs_handles_db * init_fs_db(void * mtp_ctx)
 
 void deinit_fs_db(fs_handles_db * fsh)
 {
-	fs_entry * next_entry;
-
-	PRINT_DEBUG("deinit_fs_db called");
-
-	if( fsh )
+	if (fsh)
 	{
-		while( fsh->entry_list )
+		for (int i = 0; i < HASH_TABLE_SIZE; i++)
 		{
-			next_entry = fsh->entry_list->next;
-
-			if( fsh->entry_list->watch_descriptor != -1 )
+			hash_node *node = &fsh->hash_table_by_name[i];
+			if (node->entries)
 			{
-				// Disable the inotify watch point
-				inotify_handler_rmwatch( fsh->mtp_ctx, fsh->entry_list->watch_descriptor );
-				fsh->entry_list->watch_descriptor = -1;
+				for (uint32_t j = 0; j < node->size; j++)
+				{
+					if (node->entries[j]->watch_descriptor != -1)
+					{
+						inotify_handler_rmwatch(fsh->mtp_ctx, node->entries[j]->watch_descriptor);
+					}
+
+				}
+				free(node->entries);
 			}
+		}
 
-			if( fsh->entry_list->name )
-				free( fsh->entry_list->name );
+		entry_close(fsh, fsh->entry_list);
 
-			free( fsh->entry_list );
-
-			fsh->entry_list = next_entry;
+		// Free pool memory
+		fs_entry_pool_block *current = fsh->pool_head;
+		while (current)
+		{
+			fs_entry_pool_block *next = current->next;
+			for (int i = 0; i < POOL_BLOCK_SIZE; i++)
+			{
+				if (current->entries[i].name)
+				{
+					free(current->entries[i].name);
+				}
+			}
+			free(current);
+			current = next;
 		}
 
 		free(fsh);
 	}
-
-	return;
 }
 
 fs_entry * search_entry(fs_handles_db * db, filefoundinfo *fileinfo, uint32_t parent, uint32_t storage_id)
 {
-	fs_entry * entry_list;
-
 	if( !db )
 		return NULL;
 
-	entry_list = db->entry_list;
-
-	while( entry_list )
-	{
-		if( !( entry_list->flags & ENTRY_IS_DELETED ) && ( entry_list->parent == parent ) && ( entry_list->storage_id == storage_id ) && entry_list->name )
-		{
-			if( !strcmp(entry_list->name,fileinfo->filename) )
-			{
-				return entry_list;
-			}
-		}
-
-		entry_list = entry_list->next;
-	}
-
-	return NULL;
+	return find_entry(db, fileinfo->filename, parent, storage_id);
 }
 
 fs_entry * alloc_entry(fs_handles_db * db, filefoundinfo *fileinfo, uint32_t parent, uint32_t storage_id)
 {
 	fs_entry * entry;
 
-	entry = malloc(sizeof(fs_entry));
-	if( entry )
+	if (db->pool_free_count == 0)
 	{
-		memset(entry,0,sizeof(fs_entry));
-
-		entry->handle = db->next_handle;
-		db->next_handle++;
-		entry->parent = parent;
-		entry->storage_id = storage_id;
-
-		entry->name = malloc(strlen(fileinfo->filename)+1);
-		if( entry->name )
+		if (!allocate_pool_block(db))
 		{
-			strcpy(entry->name,fileinfo->filename);
+			return NULL;
 		}
-
-		entry->size = fileinfo->size;
-
-		entry->watch_descriptor = -1;
-
-		if( fileinfo->isdirectory )
-			entry->flags = ENTRY_IS_DIR;
-		else
-			entry->flags = 0x00000000;
-
-		entry->next = db->entry_list;
-
-		db->entry_list = entry;
 	}
+
+	entry = &db->pool_head->entries[--db->pool_free_count];
+	memset(entry, 0, sizeof(fs_entry));
+
+	entry->handle = db->next_handle;
+	db->next_handle++;
+	entry->parent = parent;
+	entry->storage_id = storage_id;
+
+	entry->name = strdup(fileinfo->filename);
+	if( !entry->name )
+	{
+		memset(entry, 0, sizeof(fs_entry));
+		db->pool_free_count++;
+		db->next_handle--;
+
+		return NULL;
+	}
+
+	entry->size = fileinfo->size;
+
+	entry->watch_descriptor = -1;
+
+	if (fileinfo->isdirectory)
+		entry->flags = ENTRY_IS_DIR;
+	else
+		entry->flags = 0x00000000;
+
+	// Add entry to hash table
+	insert_entry(db, entry);
+
+	// Maintain backward compatibility with list linkage
+	entry->next = db->entry_list;
+	db->entry_list = entry;
 
 	return entry;
 }
@@ -341,38 +347,43 @@ fs_entry * alloc_root_entry(fs_handles_db * db, uint32_t storage_id)
 {
 	fs_entry * entry;
 
-	if( !db )
+	if (!db)
 		return NULL;
 
-	entry = malloc(sizeof(fs_entry));
-	if( entry )
+	if (db->pool_free_count == 0)
 	{
-		memset(entry,0,sizeof(fs_entry));
-
-		entry->handle = 0x00000000;
-		entry->parent = 0x00000000;
-		entry->storage_id = storage_id;
-
-		entry->name = malloc(strlen("/")+1);
-		if( entry->name )
+		if (!allocate_pool_block(db))
 		{
-			strcpy(entry->name,"/");
+			return NULL;
 		}
-
-		entry->size = 1;
-
-		entry->watch_descriptor = -1;
-
-		entry->flags = ENTRY_IS_DIR;
-
-		entry->next = db->entry_list;
-
-		db->entry_list = entry;
 	}
+
+	entry = &db->pool_head->entries[--db->pool_free_count];
+	memset(entry, 0, sizeof(fs_entry));
+
+	entry->handle = 0x00000000;
+	entry->parent = 0x00000000;
+	entry->storage_id = storage_id;
+
+	entry->name = strdup("/");
+	if (!entry->name)
+	{
+		return NULL;
+	}
+
+	entry->size = 1;
+	entry->watch_descriptor = -1;
+	entry->flags = ENTRY_IS_DIR;
+
+	// Add root entry to hash table
+	insert_entry(db, entry);
+
+	// Maintain backward compatibility with list linkage
+	entry->next = db->entry_list;
+	db->entry_list = entry;
 
 	return entry;
 }
-
 
 fs_entry * add_entry(fs_handles_db * db, filefoundinfo *fileinfo, uint32_t parent, uint32_t storage_id)
 {
@@ -499,24 +510,21 @@ fs_entry * get_next_child_handle(fs_handles_db * db)
 
 fs_entry * get_entry_by_handle(fs_handles_db * db, uint32_t handle)
 {
-	fs_entry * entry_list;
+	uint32_t index = hash_function_handle(handle) % HASH_TABLE_SIZE;
+	hash_node *node = &db->hash_table_by_handle[index];
 
-	entry_list = db->entry_list;
-
-	while( entry_list )
+	for (uint32_t i = 0; i < node->size; i++)
 	{
-		if( !( entry_list->flags & ENTRY_IS_DELETED ) && ( entry_list->handle == handle ) )
+		if( !(  node->entries[i]->flags & ENTRY_IS_DELETED ) && (  node->entries[i]->handle == handle ) )
 		{
-			if( mtp_get_storage_root(db->mtp_ctx, entry_list->storage_id) )
+			if( mtp_get_storage_root(db->mtp_ctx,  node->entries[i]->storage_id) )
 			{
-				return entry_list;
+				return  node->entries[i];
 			}
 		}
-
-		entry_list = entry_list->next;
 	}
 
-	return 0;
+	return NULL;
 }
 
 fs_entry * get_entry_by_handle_and_storageid(fs_handles_db * db, uint32_t handle, uint32_t storage_id)
@@ -612,50 +620,53 @@ char * build_full_path(fs_handles_db * db,char * root_path,fs_entry * entry)
 			memcpy(&full_path[0],root_path,strlen(root_path));
 		}
 
+#ifdef DEBUG
 		if(entry->name)
 			PRINT_DEBUG("build_full_path : %s -> %s",entry->name, full_path);
+#endif
+
 	}
 
 	return full_path;
 }
 
-int entry_open(fs_handles_db * db, fs_entry * entry)
+int entry_open(fs_handles_db * db, fs_entry * entry, int flags, mode_t mode)
 {
-	int file;
 	char * full_path;
 
-	file = -1;
+	if (entry->file_descriptor > 0)
+		return entry->file_descriptor;
 
 	full_path = build_full_path(db,mtp_get_storage_root(db->mtp_ctx, entry->storage_id), entry);
 	if( full_path )
 	{
-		file = -1;
-
 		if(!set_storage_giduid(db->mtp_ctx, entry->storage_id))
 		{
-			file = open(full_path,O_RDONLY | O_LARGEFILE);
+			entry->file_descriptor = open(full_path, flags, mode);
 		}
 
 		restore_giduid(db->mtp_ctx);
 
-		if( file == -1 )
+#ifdef DEBUG
+		if( entry->file_descriptor == -1 )
 			PRINT_DEBUG("entry_open : Can't open %s !",full_path);
+#endif
 
 		free(full_path);
 	}
 
-	return file;
+	return entry->file_descriptor;
 }
 
-int entry_read(fs_handles_db * db, int file, unsigned char * buffer_out, mtp_offset offset, mtp_size size)
+int entry_read(fs_handles_db * db, fs_entry * entry, unsigned char * buffer_out, mtp_offset offset, mtp_size size)
 {
 	int totalread;
 
-	if( file != -1 )
+	if( entry->file_descriptor != -1 )
 	{
-		lseek64(file, offset, SEEK_SET);
+		lseek64(entry->file_descriptor, offset, SEEK_SET);
 
-		totalread = read( file, buffer_out, size );
+		totalread = read( entry->file_descriptor, buffer_out, size );
 
 		return totalread;
 	}
@@ -663,10 +674,19 @@ int entry_read(fs_handles_db * db, int file, unsigned char * buffer_out, mtp_off
 	return 0;
 }
 
-void entry_close(int file)
+void entry_close(fs_handles_db * db, fs_entry * entry)
 {
-	if( file != -1 )
-		close(file);
+	if(!entry || !db)
+		return;
+
+	if( entry->file_descriptor != -1 )
+	{
+		if (((mtp_ctx *)db->mtp_ctx)->sync_when_close)
+			fsync(entry->file_descriptor);
+
+		close(entry->file_descriptor);
+	}
+	entry->file_descriptor = -1;
 }
 
 fs_entry * get_entry_by_wd( fs_handles_db * db, int watch_descriptor, fs_entry * entry_list )

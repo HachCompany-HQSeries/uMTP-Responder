@@ -26,6 +26,8 @@
 #ifndef _INC_FS_HANDLES_DB_H_
 #define _INC_FS_HANDLES_DB_H_
 
+#include <sys/types.h>
+
 typedef struct fs_entry fs_entry;
 
 typedef int64_t mtp_size;
@@ -43,6 +45,7 @@ struct fs_entry
 	mtp_size size;
 	uint32_t date;
 
+	int file_descriptor;
 	int watch_descriptor;
 
 	fs_entry * next;
@@ -52,18 +55,37 @@ struct fs_entry
 #define ENTRY_IS_DELETED 0x00000002
 
 #define _DEF_FS_HANDLES_ 1
+#define HASH_TABLE_SIZE 1024  // Configurable table size
 
-typedef struct fs_handles_db_
-{
+typedef struct hash_node {
+	fs_entry **entries;
+	uint32_t size;
+	uint32_t capacity;
+} hash_node;
+
+#define POOL_BLOCK_SIZE 1024
+
+typedef struct fs_entry_pool_block {
+	fs_entry entries[POOL_BLOCK_SIZE];
+	struct fs_entry_pool_block *next;
+} fs_entry_pool_block;
+
+typedef struct fs_handles_db_ {
 	fs_entry * entry_list;
+	hash_node hash_table_by_name[HASH_TABLE_SIZE];   // Hash table by file name for performance improvement
+	hash_node hash_table_by_handle[HASH_TABLE_SIZE]; // Hash table by file handle for performance improvement
+
 	uint32_t next_handle;
 
-	fs_entry * search_entry;
+	fs_entry *search_entry;
 	uint32_t handle_search;
 	uint32_t storage_search;
 
-	void * mtp_ctx;
-}fs_handles_db;
+	void *mtp_ctx;
+
+	fs_entry_pool_block *pool_head;                  // Memory pool for fs_entry allocation to improve memory handling performance
+	uint32_t pool_free_count;
+} fs_handles_db;
 
 
 typedef struct filefoundinfo_
@@ -87,9 +109,9 @@ fs_entry * add_entry(fs_handles_db * db, filefoundinfo *fileinfo, uint32_t paren
 fs_entry * search_entry(fs_handles_db * db, filefoundinfo *fileinfo, uint32_t parent, uint32_t storage_id);
 fs_entry * alloc_root_entry(fs_handles_db * db, uint32_t storage_id);
 
-int entry_open(fs_handles_db * db, fs_entry * entry);
-int entry_read(fs_handles_db * db, int file, unsigned char * buffer_out, mtp_offset offset, mtp_size size);
-void entry_close(int file);
+int entry_open(fs_handles_db * db, fs_entry * entry, int flags, mode_t mode);
+int entry_read(fs_handles_db * db, fs_entry * entry, unsigned char * buffer_out, mtp_offset offset, mtp_size size);
+void entry_close(fs_handles_db * db, fs_entry * entry);
 
 char * build_full_path(fs_handles_db * db,char * root_path,fs_entry * entry);
 

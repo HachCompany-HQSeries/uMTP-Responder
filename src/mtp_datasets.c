@@ -59,7 +59,7 @@ int build_deviceinfo_dataset(mtp_ctx * ctx, void * buffer, int maxsize)
 	ofs = poke16(buffer, 0, maxsize, MTP_VERSION);                                                   // Standard Version
 	ofs = poke32(buffer, ofs, maxsize, 0x00000006);                                                  // MTP Vendor Extension ID
 	ofs = poke16(buffer, ofs, maxsize, MTP_VERSION);                                                 // MTP Version
-	ofs = poke_string(buffer, ofs, maxsize, DevInfos_MTP_Extensions);                                // MTP Extensions
+	ofs = poke_string(buffer, ofs, maxsize, ctx->usb_cfg.usb_string_mtp_extensions);                 // MTP Extensions
 	ofs = poke16(buffer, ofs, maxsize, 0x0000);                                                      // Functional Mode
 	ofs = poke_array(buffer, ofs, maxsize, supported_op_size, 2, (void*)&supported_op,1);            // Operations Supported
 	ofs = poke_array(buffer, ofs, maxsize, supported_event_size, 2, (void*)&supported_event,1);      // Events Supported
@@ -208,7 +208,11 @@ int build_objectinfo_dataset(mtp_ctx * ctx, void * buffer, int maxsize,fs_entry 
 
 	entry->size = entrystat.st_size;
 
-	ofs = poke32(buffer, ofs, maxsize, entry->size);                                             // Object Compressed Size
+	if( entry->size >= (mtp_size)(0x100000000) )
+		ofs = poke32(buffer, ofs, maxsize, 0xFFFFFFFF);                                          // Object Compressed Size
+	else
+		ofs = poke32(buffer, ofs, maxsize, entry->size);                                         // Object Compressed Size
+
 	ofs = poke16(buffer, ofs, maxsize, 0x0000);                                                  // Thumb Format (NR)
 	ofs = poke32(buffer, ofs, maxsize, 0x00000000);                                              // Thumb Compressed Size (NR)
 	ofs = poke32(buffer, ofs, maxsize, 0x00000000);                                              // Thumb Pix Width (NR)
