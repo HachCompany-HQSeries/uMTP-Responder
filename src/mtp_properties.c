@@ -20,7 +20,7 @@
 /**
  * @file   mtp_properties.c
  * @brief  MTP properties datasets helpers
- * @author Jean-François DEL NERO <Jean-Francois.DELNERO@viveris.fr>
+ * @author Jean-FranÃ§ois DEL NERO <Jean-Francois.DELNERO@viveris.fr>
  */
 
 #include "buildconf.h"
@@ -41,6 +41,8 @@
 #include "mtp_properties.h"
 
 #include "fs_handles_db.h"
+#include "hash_utils.h"
+#include "mtp_sanitize.h"
 #include "usb_gadget_fct.h"
 
 #include "logs_out.h"
@@ -447,14 +449,42 @@ int build_properties_supported_dataset(mtp_ctx * ctx,void * buffer, int maxsize,
 	return ofs;
 }
 
+static char * getObjectPropFilename(MTP_PACKET_HEADER * mtp_packet_hdr)
+{
+	char * filename;
+	unsigned int stringlen;
+
+	filename = malloc(FS_HANDLE_MAX_FILENAME_SIZE + 1);
+	if( !filename )
+		return NULL;
+
+	memset(filename,0,FS_HANDLE_MAX_FILENAME_SIZE + 1);
+
+	stringlen = peek(mtp_packet_hdr, sizeof(MTP_PACKET_HEADER), 1);
+
+	if( stringlen > FS_HANDLE_MAX_FILENAME_SIZE)
+		stringlen = FS_HANDLE_MAX_FILENAME_SIZE;
+
+	unicode2charstring(filename, (uint16_t *) ((char*)(mtp_packet_hdr) + sizeof(MTP_PACKET_HEADER) + 1), FS_HANDLE_MAX_FILENAME_SIZE + 1);
+	filename[ FS_HANDLE_MAX_FILENAME_SIZE ] = 0;
+
+	if (sanitize_name(filename, FS_HANDLE_MAX_FILENAME_SIZE + 1 ) != 1 )
+	{
+		PRINT_ERROR("getObjectPropFilename : Malformed object name !");
+		free(filename);
+		return NULL;
+	}
+
+	return filename;
+}
+
 int setObjectPropValue(mtp_ctx * ctx,MTP_PACKET_HEADER * mtp_packet_hdr, uint32_t handle,uint32_t prop_code)
 {
 	fs_entry * entry;
 	char * path;
 	char * path2;
 	char * old_filename;
-	char tmpstr[256+1];
-	unsigned int stringlen;
+	char * new_filename;
 	uint32_t response_code;
 	int ret;
 
@@ -478,43 +508,26 @@ int setObjectPropValue(mtp_ctx * ctx,MTP_PACKET_HEADER * mtp_packet_hdr, uint32_
 				if(!path)
 					return MTP_RESPONSE_GENERAL_ERROR;
 
-				memset(tmpstr,0,sizeof(tmpstr));
-
-				stringlen = peek(mtp_packet_hdr, sizeof(MTP_PACKET_HEADER), 1);
-
-				if( stringlen > sizeof(tmpstr))
-					stringlen = sizeof(tmpstr);
-
-				unicode2charstring(tmpstr, (uint16_t *) ((char*)(mtp_packet_hdr) + sizeof(MTP_PACKET_HEADER) + 1), sizeof(tmpstr));
-				tmpstr[ sizeof(tmpstr) - 1 ] = 0;
-
-				old_filename = entry->name;
-
-				entry->name = malloc(strlen(tmpstr)+1);
-				if( entry->name )
+				new_filename = getObjectPropFilename(mtp_packet_hdr);
+				if(!new_filename)
 				{
-					strcpy(entry->name,tmpstr);
-				}
-				else
-				{
-					entry->name = old_filename;
-					return MTP_RESPONSE_GENERAL_ERROR;
-				}
-
-				path2 = build_full_path(ctx->fs_db, mtp_get_storage_root(ctx, entry->storage_id), entry);
-				if(!path2)
-				{
-					if( old_filename )
-					{
-						if(entry->name)
-							free(entry->name);
-
-						entry->name = old_filename;
-					}
-
 					free(path);
 					return MTP_RESPONSE_GENERAL_ERROR;
 				}
+
+				old_filename = entry->name;
+
+				entry->name = new_filename;
+				path2 = build_full_path(ctx->fs_db, mtp_get_storage_root(ctx, entry->storage_id), entry);
+				if(!path2)
+				{
+					entry->name = old_filename;
+					free(path);
+					free(new_filename);
+					return MTP_RESPONSE_GENERAL_ERROR;
+				}
+
+				entry->name = old_filename;
 
 				ret = -1;
 
@@ -528,18 +541,16 @@ int setObjectPropValue(mtp_ctx * ctx,MTP_PACKET_HEADER * mtp_packet_hdr, uint32_
 				{
 					PRINT_ERROR("setObjectPropValue : Can't rename %s to %s", path, path2);
 
-					if( old_filename )
-					{
-						if(entry->name)
-							free(entry->name);
-
-						entry->name = old_filename;
-					}
-
 					free(path);
 					free(path2);
+					free(new_filename);
 					return MTP_RESPONSE_GENERAL_ERROR;
 				}
+
+				remove_entry(ctx->fs_db, entry);
+				entry->name = new_filename;
+				insert_entry(ctx->fs_db, entry);
+				free(old_filename);
 
 				free(path);
 				free(path2);
