@@ -1,6 +1,6 @@
 /*
  * uMTP Responder
- * Copyright (c) 2018 - 2025 Viveris Technologies
+ * Copyright (c) 2018 - 2026 Viveris Technologies
  *
  * uMTP Responder is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public
@@ -692,6 +692,12 @@ char * build_full_path(fs_handles_db * db,char * root_path,fs_entry * entry)
 		}
 
 		free(full_path);
+
+		if( !retpath )
+		{
+			PRINT_ERROR("build_full_path : Can't resolve the object path !");
+			return NULL;
+		}
 
 		if( strncmp(root_path, retpath, root_path_len ) )
 		{

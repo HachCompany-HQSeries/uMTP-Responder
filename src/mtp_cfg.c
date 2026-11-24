@@ -1,6 +1,6 @@
 /*
  * uMTP Responder
- * Copyright (c) 2018 - 2025 Viveris Technologies
+ * Copyright (c) 2018 - 2026 Viveris Technologies
  *
  * uMTP Responder is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public
@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <dirent.h>
 #include <unistd.h>
 
 #include "mtp.h"
@@ -70,7 +71,11 @@ enum
 	SERIAL_STRING_CMD,
 	VERSION_STRING_CMD,
 	MTP_EXTENSIONS_STRING_CMD,
+	MTP_SYNC_PARTNER_STRING_CMD,
 	INTERFACE_STRING_CMD,
+
+	BATTERY_CAPACITY_CMD,
+	PERCEIVED_DEVICE_TYPE_CMD,
 
 	WAIT_CONNECTION,
 	LOOP_ON_DISCONNECT,
@@ -484,6 +489,11 @@ static int get_hex_param(mtp_ctx * context, char * line,int cmd)
 
 			case SYNC_WHEN_CLOSE:
 				context->sync_when_close = param_value;
+			break;
+
+			case PERCEIVED_DEVICE_TYPE_CMD:
+				context->usb_cfg.perceived_device_type = param_value;
+			break;
 
 		}
 	}
@@ -538,8 +548,16 @@ static int get_str_param(mtp_ctx * context, char * line,int cmd)
 				strncpy(context->usb_cfg.usb_string_mtp_extensions,tmp_txt,MAX_CFG_STRING_SIZE);
 			break;
 
+			case MTP_SYNC_PARTNER_STRING_CMD:
+				strncpy(context->usb_cfg.synchronization_partner,tmp_txt,MAX_CFG_STRING_SIZE);
+			break;
+
 			case INTERFACE_STRING_CMD:
 				strncpy(context->usb_cfg.usb_string_interface,tmp_txt,MAX_CFG_STRING_SIZE);
+			break;
+
+			case BATTERY_CAPACITY_CMD:
+				strncpy(context->usb_cfg.battery_capacity,tmp_txt,MAX_CFG_STRING_SIZE);
 			break;
 		}
 	}
@@ -618,6 +636,10 @@ kw_list kwlist[] =
 	{"firmware_version",       get_str_param,   VERSION_STRING_CMD},
 	{"interface",              get_str_param,   INTERFACE_STRING_CMD},
 	{"mtp_extensions",         get_str_param,   MTP_EXTENSIONS_STRING_CMD},
+	{"mtp_sync_partner",       get_str_param,   MTP_SYNC_PARTNER_STRING_CMD},
+
+	{"battery_capacity",       get_str_param,   BATTERY_CAPACITY_CMD},
+	{"perceived_device_type",  get_hex_param,   PERCEIVED_DEVICE_TYPE_CMD},
 
 	{"wait",                   get_hex_param,   WAIT_CONNECTION},
 	{"loop_on_disconnect",     get_hex_param,   LOOP_ON_DISCONNECT},
@@ -677,11 +699,62 @@ int execute_line(mtp_ctx * context,char * line)
 	return 0;
 }
 
+static int load_config_file(mtp_ctx * context, const char * conffile)
+{
+	FILE * f;
+	char line[MAX_CFG_STRING_SIZE];
+
+	f = fopen(conffile, "r");
+	if(!f)
+		return -1;
+
+	while(fgets(line, sizeof(line), f))
+	{
+		execute_line(context, line);
+	}
+
+	fclose(f);
+
+	return 0;
+}
+
+static int conf_name_filter(const struct dirent * entry)
+{
+	size_t len = strlen(entry->d_name);
+
+	return len > 5 && !strcmp(&entry->d_name[len - 5], ".conf");
+}
+
+// Load every "<conffile>.d/*.conf" (sorted by name) after the main
+// configuration file: they add to / override the base configuration.
+static void load_config_dir(mtp_ctx * context, const char * conffile)
+{
+	struct dirent ** namelist;
+	char dirpath[MAX_CFG_STRING_SIZE];
+	char path[MAX_CFG_STRING_SIZE * 2];
+	int n, i;
+
+	if(snprintf(dirpath, sizeof(dirpath), "%s.d", conffile) >= (int)sizeof(dirpath))
+		return;
+
+	n = scandir(dirpath, &namelist, conf_name_filter, alphasort);
+	if(n < 0)
+		return;
+
+	for(i = 0; i < n; i++)
+	{
+		snprintf(path, sizeof(path), "%s/%s", dirpath, namelist[i]->d_name);
+		PRINT_MSG("Loading config file %s", path);
+		if(load_config_file(context, path))
+			PRINT_ERROR("Can't open %s !", path);
+		free(namelist[i]);
+	}
+	free(namelist);
+}
+
 int mtp_load_config_file(mtp_ctx * context, const char * conffile)
 {
 	int err = 0;
-	FILE * f;
-	char line[MAX_CFG_STRING_SIZE];
 
 	memset((void*)&context->usb_cfg,0x00, sizeof(mtp_usb_cfg));
 
@@ -696,6 +769,7 @@ int mtp_load_config_file(mtp_ctx * context, const char * conffile)
 	strncpy(context->usb_cfg.usb_string_version,      "Rev A",                MAX_CFG_STRING_SIZE);
 	strncpy(context->usb_cfg.usb_string_mtp_extensions, "",                   MAX_CFG_STRING_SIZE);
 	strncpy(context->usb_cfg.usb_string_interface,    "MTP",                  MAX_CFG_STRING_SIZE);
+	strncpy(context->usb_cfg.synchronization_partner, "",                     MAX_CFG_STRING_SIZE);
 
 	context->usb_cfg.usb_vendor_id       = USB_DEV_VENDOR_ID;
 	context->usb_cfg.usb_product_id      = USB_DEV_PRODUCT_ID;
@@ -719,26 +793,12 @@ int mtp_load_config_file(mtp_ctx * context, const char * conffile)
 	context->no_inotify = 0;
 	context->sync_when_close = 0;
 
-	f = fopen(conffile, "r");
-	if(f)
-	{
-		do
-		{
-			if(!fgets(line,sizeof(line),f))
-				break;
-
-			if(feof(f))
-				break;
-
-			execute_line(context, line);
-		}while(1);
-
-		fclose(f);
-	}
-	else
+	if(load_config_file(context, conffile))
 	{
 		PRINT_ERROR("Can't open %s ! Using default settings...", conffile);
 	}
+
+	load_config_dir(context, conffile);
 
 	PRINT_MSG("USB Device path : %s",context->usb_cfg.usb_device_path);
 	PRINT_MSG("USB In End point path : %s",context->usb_cfg.usb_endpoint_in);
@@ -754,7 +814,12 @@ int mtp_load_config_file(mtp_ctx * context, const char * conffile)
 	PRINT_MSG("Serial string : %s",context->usb_cfg.usb_string_serial);
 	PRINT_MSG("Firmware Version string : %s", context->usb_cfg.usb_string_version);
 	PRINT_MSG("MTP Exstensions string : %s", context->usb_cfg.usb_string_mtp_extensions);
+	PRINT_MSG("Synchronisation Partner string : %s",context->usb_cfg.synchronization_partner);
 	PRINT_MSG("Interface string : %s",context->usb_cfg.usb_string_interface);
+	if(context->usb_cfg.battery_capacity[0])
+		PRINT_MSG("Battery capacity file : %s",context->usb_cfg.battery_capacity);
+	if(context->usb_cfg.perceived_device_type)
+		PRINT_MSG("Perceived device type : 0x%X",context->usb_cfg.perceived_device_type);
 
 	PRINT_MSG("USB Vendor ID : 0x%.4X",context->usb_cfg.usb_vendor_id);
 	PRINT_MSG("USB Product ID : 0x%.4X",context->usb_cfg.usb_product_id);

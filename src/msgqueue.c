@@ -1,6 +1,6 @@
 /*
  * uMTP Responder
- * Copyright (c) 2018 - 2025 Viveris Technologies
+ * Copyright (c) 2018 - 2026 Viveris Technologies
  *
  * uMTP Responder is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public
@@ -60,7 +60,7 @@
 
 static struct mq_attr qattrs = {
   0,  // flags
-  20, // max number of messages on the queue
+  10, // max number of messages on the queue (default fs.mqueue.msg_max, the limit without CAP_SYS_RESOURCE)
   MAX_MSG_SIZE,
   0   // number of messages currently on the queue
 };
